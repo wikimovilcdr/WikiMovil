@@ -12,6 +12,24 @@ import datetime
 import io
 import time
 
+
+st.set_page_config(page_title="WikiMovil 3", page_icon="📡", layout="wide")
+
+# CSS PARA OCULTAR MARCAS DE STREAMLIT Y AJUSTAR LOGIN
+hide_st_style = """
+            <style>
+            #MainMenu {visibility: hidden;}
+            footer {visibility: hidden;}
+            header {visibility: hidden;}
+            /* Esto sube todo el contenido para que no haya espacio blanco arriba */
+            .block-container {
+                padding-top: 1rem;
+                padding-bottom: 0rem;
+            }
+            </style>
+            """
+st.markdown(hide_st_style, unsafe_allow_html=True)
+
 # -----------------------------------------------------------------------------
 # CONFIGURACIÓN DE LA PÁGINA Y ESTILOS
 # -----------------------------------------------------------------------------
@@ -22,7 +40,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS personalizados (Mobile First + Header Usuario)
+# Estilos CSS 
 st.markdown("""
 <style>
     /* Ajustes generales */
@@ -139,7 +157,7 @@ def upload_image_to_drive(file_obj):
             'parents': [folder_id]
         }
         
-        # Streamlit devuelve un BytesIO, necesitamos leerlo
+        # Streamlit devuelve un BytesIO
         media = MediaIoBaseUpload(file_obj, mimetype=file_obj.type, resumable=True)
         
         file = service.files().create(
@@ -150,8 +168,7 @@ def upload_image_to_drive(file_obj):
         
         file_id = file.get('id')
         
-        # HACER PÚBLICO EL ARCHIVO (Para que Streamlit pueda renderizarlo)
-        # Aviso: Esto hace que cualquiera con el link pueda ver la foto.
+        # HACER PÚBLICO EL ARCHIVO 
         permission = {
             'type': 'anyone',
             'role': 'reader',
@@ -190,6 +207,23 @@ def check_login(username, password, db):
     except Exception as e:
         st.error(f"Error de lectura DB: {e}")
         return False, None
+    
+def create_user(username, name, password, email, db):
+    # 1. Verificar si el usuario ya existe
+    users_sheet = db["users"]
+    users_data = users_sheet.get_all_records()
+    df_users = pd.DataFrame(users_data)
+    
+    if not df_users.empty and username in df_users['user'].values:
+        raise ValueError("El usuario ya existe.")
+    
+    # 2. Hashear la contraseña (asegúrate de tener la funcion make_hash)
+    pass_hash = make_hash(password)
+    
+    # 3. Agregar a Google Sheets
+    # El orden debe coincidir con tus columnas: user, name, pass_hash, email, role
+    new_row = [username, name, pass_hash, email, "user"] 
+    users_sheet.append_row(new_row)
 
 def get_hashtags(db):
     """Obtiene hashtags estáticos + dinámicos de la DB"""
@@ -254,22 +288,72 @@ def render_user_header():
         </div>
         """, unsafe_allow_html=True)
 
-def login_page(db):
-    st.title("🔐 WikiMovil 3 - Acceso")
+def login_page():
+    # 1. DB al principio
+    db = get_db_connection()
     
-    col1, col2, col3 = st.columns([1,2,1])
-    with col2:
-        username = st.text_input("Usuario")
-        password = st.text_input("Contraseña", type="password")
-        
-        if st.button("Ingresar", use_container_width=True):
-            is_valid, user_data = check_login(username, password, db)
-            if is_valid:
-                st.session_state["logged_in"] = True
-                st.session_state["user_info"] = user_data
-                st.rerun()
-            else:
-                st.error("Usuario o contraseña incorrectos")
+    st.markdown("<h1 style='text-align: center;'>📡 WikiMovil 3</h1>", unsafe_allow_html=True)
+    
+    tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Contraseña"])
+
+    # --- TAB 1: LOGIN ---
+    with tab1:
+        with st.form("login_form"):
+            username = st.text_input("Usuario")
+            password = st.text_input("Contraseña", type="password")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+            
+            if submitted:
+                #  Pasamos 'db' a la función
+                is_valid, user_data = check_login(username, password, db)
+                
+                if is_valid:
+                    st.session_state['authenticated'] = True
+                    # Guardamos los datos del usuario en la sesión
+                    st.session_state['user'] = user_data['user']
+                    st.session_state['role'] = user_data['role']
+                    st.session_state['name'] = user_data['name'] # Si existe la columna name
+                    st.success(f"¡Bienvenido {user_data['user']}!")
+                    st.rerun()
+                else:
+                    st.error("Usuario o contraseña incorrectos")
+
+    # --- TAB 2: REGISTRO ---
+    with tab2:
+        with st.form("register_form"):
+            st.write("Crea tu cuenta operativa")
+            new_user = st.text_input("Usuario (Ej: jperalta)")
+            new_name = st.text_input("Nombre Completo")
+            new_email = st.text_input("Email Corporativo")
+            new_pass = st.text_input("Contraseña", type="password")
+            new_pass2 = st.text_input("Repetir Contraseña", type="password")
+            
+            reg_submitted = st.form_submit_button("Crear Cuenta", use_container_width=True)
+            
+            if reg_submitted:
+                if new_pass != new_pass2:
+                    st.error("Las contraseñas no coinciden.")
+                elif len(new_pass) < 6:
+                    st.error("La contraseña debe tener al menos 6 caracteres.")
+                elif new_user == "" or new_email == "":
+                    st.error("Todos los campos son obligatorios.")
+                else:
+                    # Intentamos crear el usuario
+                    try:
+                        # Verifica si tu código tiene una función 'create_user' o 'register_user'
+                        
+                        create_user(new_user, new_name, new_pass, new_email, db)
+                        st.success("¡Cuenta creada exitosamente! Ve a la pestaña 'Iniciar Sesión'.")
+                    except Exception as e:
+                        st.error(f"Error al crear usuario: {e}")
+
+    # --- TAB 3: RECUPERAR ---
+    with tab3:
+        st.info("Sistema de recuperación vía Email")
+        rec_email = st.text_input("Ingresa tu email registrado")
+        if st.button("Enviar contraseña provisoria"):
+            
+            st.warning("Contacta al administrador para resetear tu clave por ahora.")
 
 def feed_view(db, filter_tag=None):
     st.subheader("📰 Últimas Actualizaciones" if not filter_tag else f"🔍 Resultados para: {filter_tag}")
@@ -412,13 +496,13 @@ def chat_ai_page(db):
     query = st.text_input("¿En qué puedo ayudarte?")
     if st.button("Consultar"):
         with st.spinner("Analizando base de conocimientos..."):
-            # Obtener contexto (últimos 50 posts para no saturar tokens)
+            # Obtener contexto 
             try:
                 posts = db["posts"].get_all_records()
                 df = pd.DataFrame(posts)
                 if not df.empty:
                     # Crear texto de contexto concatenando posts relevantes
-                    # (En un sistema prod, usaríamos Embeddings + Vector DB)
+                    
                     df['text_repr'] = df['fecha'] + " - " + df['hashtags'] + ": " + df['contenido_html']
                     context = "\n".join(df['text_repr'].tail(30).tolist()) # Últimos 30
                     
@@ -449,7 +533,7 @@ def profile_page(db):
         if make_hash(old_pass) == user['pass_hash']:
             # Actualizar en Sheets
             try:
-                # Buscar la fila (ineficiente pero funcional para pocos usuarios)
+                # Buscar la fila 
                 cell = db["users"].find(user['user'])
                 new_hash = make_hash(new_pass)
                 # Asumimos que pass_hash es la columna 2 (índice B)
