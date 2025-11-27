@@ -559,6 +559,114 @@ def profile_page(db):
 # -----------------------------------------------------------------------------
 # CONTROL DE FLUJO PRINCIPAL
 # -----------------------------------------------------------------------------
+# --- FUNCIONES DE LAS VISTAS (PANTALLAS) ---
+
+def show_feed(db):
+    st.header("🏠 Últimas Novedades")
+    try:
+        posts_sheet = db["posts"]
+        data = posts_sheet.get_all_records()
+        
+        if not data:
+            st.info("Aún no hay publicaciones. ¡Sé el primero!")
+            return
+
+        # Convertimos a DataFrame para facilitar el manejo
+        df = pd.DataFrame(data)
+        
+        # Ordenamos para ver el más reciente primero (asumiendo que hay columna 'fecha' o por índice)
+        # Si no hay fecha, invertimos el orden simplemente
+        df = df.iloc[::-1]
+
+        for index, row in df.iterrows():
+            with st.container():
+                # Diseño tipo tarjeta con CSS nativo simple
+                st.markdown(f"""
+                <div style="border:1px solid #e0e0e0; padding:15px; border-radius:10px; margin-bottom:10px; background-color: #1E1E1E;">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="font-weight:bold; color:#FF4B4B;">@{row.get('author', 'Anon')}</span>
+                        <span style="font-size:0.8em; color:gray;">{row.get('date', '')}</span>
+                    </div>
+                    <span style="background-color:#333; padding:2px 8px; border-radius:4px; font-size:0.8em;">{row.get('category', 'General')}</span>
+                    <p style="margin-top:10px; font-size:1.1em;">{row.get('content', '')}</p>
+                    <p style="color:#2E86C1; font-size:0.9em;">{row.get('hashtags', '')}</p>
+                </div>
+                """, unsafe_allow_html=True)
+                
+                # Si hay imagen (url), la mostramos
+                if row.get('image_url'):
+                    st.image(row['image_url'])
+                    
+                st.divider()
+
+    except Exception as e:
+        st.error(f"Error cargando el feed: {e}")
+
+def create_post_page(db):
+    st.header("➕ Nuevo Post")
+    
+    with st.form("new_post"):
+        category = st.selectbox("Categoría", ["Energía", "Transmisión", "Acceso", "Salesforce", "Procesos", "Datos Utiles"])
+        content = st.text_area("¿Qué quieres compartir o reportar?")
+        
+        # Hashtags predefinidos
+        tags_list = ["#DatosUtiles", "#PasesAFO", "#Soporte", "#ReclamosEnergia", "#Movistar", "#Claro", "#Salesforce", "#BMC"]
+        selected_tags = st.multiselect("Etiquetas", tags_list)
+        
+        # Por ahora, input de texto para URL de imagen (luego veremos lo de Drive)
+        image_url = st.text_input("URL de Imagen (Opcional)")
+        
+        submitted = st.form_submit_button("Publicar")
+        
+        if submitted:
+            from datetime import datetime
+            fecha = datetime.now().strftime("%Y-%m-%d %H:%M")
+            author = st.session_state['user']
+            tags_str = " ".join(selected_tags)
+            
+            # Guardar en GSheets
+            try:
+                posts_sheet = db["posts"]
+                # Asegúrate que el orden coincida con tus columnas en Excel:
+                # id, date, author, category, content, hashtags, image_url, likes
+                posts_sheet.append_row([
+                    str(datetime.now().timestamp()), # ID único
+                    fecha,
+                    author,
+                    category,
+                    content,
+                    tags_str,
+                    image_url,
+                    0 # Likes iniciales
+                ])
+                st.success("¡Publicado con éxito!")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Error al publicar: {e}")
+
+def show_explore(db):
+    st.header("🔍 Explorar")
+    st.info("Funcionalidad de búsqueda avanzada en construcción.")
+    # Aquí iría la lógica de filtros
+
+def show_profile(db):
+    st.header("👤 Mi Perfil")
+    st.write(f"**Usuario:** {st.session_state.get('user')}")
+    st.write(f"**Nombre:** {st.session_state.get('name')}")
+    st.write(f"**Rol:** {st.session_state.get('role')}")
+    
+    with st.expander("Cambiar Contraseña"):
+        st.warning("Contacta al admin para cambiar tu clave por ahora.")
+
+def show_ai_chat(db):
+    st.header("🤖 WikiBot (IA)")
+    st.info("Para activar el cerebro de IA, necesitas configurar la API Key de OpenAI.")
+    user_q = st.chat_input("Pregúntame algo sobre la operación...")
+    if user_q:
+        st.write(f"**Tú:** {user_q}")
+        st.write("🤖 **Bot:** Lo siento, mi cerebro (API Key) aún no está conectado.")
+
+
 
 def main():
     # 1. Configuración inicial de variables de sesión
