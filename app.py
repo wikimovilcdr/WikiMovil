@@ -288,10 +288,9 @@ def render_user_header():
         </div>
         """, unsafe_allow_html=True)
 
-def login_page():
-    # 1. DB al principio
-    db = get_db_connection()
-    
+
+def login_page(db):
+        
     st.markdown("<h1 style='text-align: center;'>📡 WikiMovil 3</h1>", unsafe_allow_html=True)
     
     tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Contraseña"])
@@ -304,15 +303,15 @@ def login_page():
             submitted = st.form_submit_button("Entrar", use_container_width=True)
             
             if submitted:
-                #  Pasamos 'db' a la función
+                # Usamos la 'db' que recibimos arriba
                 is_valid, user_data = check_login(username, password, db)
                 
                 if is_valid:
                     st.session_state['authenticated'] = True
-                    # Guardamos los datos del usuario en la sesión
                     st.session_state['user'] = user_data['user']
                     st.session_state['role'] = user_data['role']
-                    st.session_state['name'] = user_data['name'] # Si existe la columna name
+                    # Verificamos si existe la columna 'name', si no usamos el user
+                    st.session_state['name'] = user_data.get('name', user_data['user']) 
                     st.success(f"¡Bienvenido {user_data['user']}!")
                     st.rerun()
                 else:
@@ -338,10 +337,8 @@ def login_page():
                 elif new_user == "" or new_email == "":
                     st.error("Todos los campos son obligatorios.")
                 else:
-                    # Intentamos crear el usuario
                     try:
-                        # Verifica si tu código tiene una función 'create_user' o 'register_user'
-                        
+                        # Pasamos la 'db'
                         create_user(new_user, new_name, new_pass, new_email, db)
                         st.success("¡Cuenta creada exitosamente! Ve a la pestaña 'Iniciar Sesión'.")
                     except Exception as e:
@@ -352,7 +349,6 @@ def login_page():
         st.info("Sistema de recuperación vía Email")
         rec_email = st.text_input("Ingresa tu email registrado")
         if st.button("Enviar contraseña provisoria"):
-            
             st.warning("Contacta al administrador para resetear tu clave por ahora.")
 
 def feed_view(db, filter_tag=None):
