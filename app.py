@@ -290,32 +290,42 @@ def render_user_header():
 
 
 def login_page(db):
-        
     st.markdown("<h1 style='text-align: center;'>📡 WikiMovil 3</h1>", unsafe_allow_html=True)
+    
+    
+    if 'account_created' not in st.session_state:
+        st.session_state['account_created'] = False
+
     
     tab1, tab2, tab3 = st.tabs(["Iniciar Sesión", "Registrarse", "Recuperar Contraseña"])
 
     # --- TAB 1: LOGIN ---
     with tab1:
+        # Si el usuario viene de registrarse, le mostramos éxito aquí
+        if st.session_state['account_created']:
+            st.success("✅ ¡Cuenta creada con éxito! Por favor ingresa tus datos abajo.")
+            # Reiniciamos la variable para que no salga el mensaje eternamente
+            st.session_state['account_created'] = False
+
         with st.form("login_form"):
             username = st.text_input("Usuario")
             password = st.text_input("Contraseña", type="password")
             submitted = st.form_submit_button("Entrar", use_container_width=True)
             
             if submitted:
-                # Usamos la 'db' que recibimos arriba
+                
                 is_valid, user_data = check_login(username, password, db)
                 
                 if is_valid:
                     st.session_state['authenticated'] = True
                     st.session_state['user'] = user_data['user']
                     st.session_state['role'] = user_data['role']
-                    # Verificamos si existe la columna 'name', si no usamos el user
+                    # .get() por seguridad si la columna name no existe
                     st.session_state['name'] = user_data.get('name', user_data['user']) 
                     st.success(f"¡Bienvenido {user_data['user']}!")
                     st.rerun()
                 else:
-                    st.error("Usuario o contraseña incorrectos")
+                    st.error("Usuario o contraseña incorrectos. (Verifica los nombres de columna en tu Excel)")
 
     # --- TAB 2: REGISTRO ---
     with tab2:
@@ -338,9 +348,10 @@ def login_page(db):
                     st.error("Todos los campos son obligatorios.")
                 else:
                     try:
-                        # Pasamos la 'db'
                         create_user(new_user, new_name, new_pass, new_email, db)
-                        st.success("¡Cuenta creada exitosamente! Ve a la pestaña 'Iniciar Sesión'.")
+                        
+                        st.session_state['account_created'] = True
+                        st.rerun()
                     except Exception as e:
                         st.error(f"Error al crear usuario: {e}")
 
