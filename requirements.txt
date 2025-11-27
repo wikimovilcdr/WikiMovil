@@ -1,0 +1,8 @@
+streamlit
+streamlit-option-menu
+streamlit-quill
+gspread
+google-auth
+google-api-python-client
+pandas
+openai
