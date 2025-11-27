@@ -349,8 +349,10 @@ def login_page(db):
                 else:
                     try:
                         create_user(new_user, new_name, new_pass, new_email, db)
-                        
+                        st.success("¡Cuenta creada! Redirigiendo al login...")
                         st.session_state['account_created'] = True
+                        import time
+                        time.sleep(1) # Pausa dramática de 1 segundo
                         st.rerun()
                     except Exception as e:
                         st.error(f"Error al crear usuario: {e}")
@@ -559,46 +561,56 @@ def profile_page(db):
 # -----------------------------------------------------------------------------
 
 def main():
-    # Inicializar DB
-    db = get_db_connection()
-    
-    if "logged_in" not in st.session_state:
-        st.session_state["logged_in"] = False
+    # 1. Configuración inicial de variables de sesión
+    if 'authenticated' not in st.session_state:
+        st.session_state['authenticated'] = False
+    if 'user' not in st.session_state:
+        st.session_state['user'] = None
 
-    if not st.session_state["logged_in"]:
+    # 2. Conexión a Base de Datos
+    try:
+        db = get_db_connection()
+    except Exception as e:
+        st.error(f"Error crítico conectando a la base de datos: {e}")
+        st.stop()
+
+    # 3. CONTROL DE TRÁFICO 
+    if not st.session_state['authenticated']:
+        # --- MODO NO LOGUEADO ---
         login_page(db)
     else:
-        # Render User Header
-        render_user_header()
+        # --- MODO LOGUEADO (DENTRO DE LA APP) ---
         
-        # Sidebar Navigation
+        
         with st.sidebar:
-            st.title("WikiMovil 3")
+            
+            st.write(f"👤 **{st.session_state['user']}**")
+            if st.button("Cerrar Sesión"):
+                st.session_state['authenticated'] = False
+                st.session_state['user'] = None
+                st.rerun()
+            
+            # Menú de Navegación
             selected = option_menu(
-                menu_title=None,
+                menu_title="Menú Principal",
                 options=["Home", "Explorar", "Nuevo Post", "Perfil", "Chat IA"],
                 icons=["house", "search", "plus-circle", "person", "robot"],
                 menu_icon="cast",
                 default_index=0,
             )
-            
-            st.divider()
-            if st.button("Cerrar Sesión"):
-                st.session_state["logged_in"] = False
-                st.rerun()
 
-        # Routing
+        # Lógica de navegación
         if selected == "Home":
-            st.title("🏠 Inicio")
-            feed_view(db)
+            show_feed(db) 
         elif selected == "Explorar":
-            explore_page(db)
+            show_explore(db)
         elif selected == "Nuevo Post":
-            new_post_page(db)
+            create_post_page(db)
         elif selected == "Perfil":
-            profile_page(db)
+            show_profile(db)
         elif selected == "Chat IA":
-            chat_ai_page(db)
+            show_ai_chat(db)
 
+# Ejecución del script
 if __name__ == "__main__":
     main()
